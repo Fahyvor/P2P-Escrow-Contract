@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "openzeppelin-contracts/security/ReentrancyGuard.sol";
 
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -49,7 +49,7 @@ contract P2PEscrow is ReentrancyGuard {
     }
 
     //Create Trade Function
-    function createTrade(address token, uint256 amount) external returns (uint256) {
+    function createTrade(address token, uint256 amount) external nonReentrant returns (uint256) {
         require(msg.sender != address(0), "Invalid seller address");
         require(amount > 0, "Amount must be greater than zero");
 
