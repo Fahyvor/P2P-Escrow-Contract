@@ -45,3 +45,31 @@ contract TokenMock is IERC20 {
         balanceOf[to] += amount;
     }
 }
+
+contract P2PEscrowTest is Test {
+    P2PEscrow public escrow;
+    TokenMock public token;
+
+    address seller = address(0x1);
+    address buyer = address(0x2);
+
+    function setUp() public {
+        escrow = new P2PEscrow();
+        token = new TokenMock();
+
+        token.transfer(seller, 1000 ether);
+        // vm.prank(seller) sets the msg.sender to the seller address so that
+        // the following operations are executed as if the seller was calling
+        // them. This is useful to test the contract in different scenarios.
+        vm.prank(seller);
+        token.approve(address(escrow), 1000 ether);
+    }
+
+    function testCreateTrade() public {
+        vm.startPrank(seller);
+        uint tradeId = escrow.createTrade(address(token), 100 ether);
+        (, , , uint amount, ) = escrow.trades(tradeId);
+        assertEq(amount, 100 ether);
+        vm.stopPrank();
+    }
+}

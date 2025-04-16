@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 interface IERC20 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
 }
 
-contract P2PEscrow {
+contract P2PEscrow is ReentrancyGuard {
     enum TradeStatus { Pending, Accepted, Released, Cancelled, Disputed }
 
     struct Trade {
@@ -19,7 +20,7 @@ contract P2PEscrow {
 
     uint256 public tradeCount;
     mapping(uint256 => Trade) public trades;
-    address public admin;
+    address public immutable admin;
 
     constructor() {
         admin = msg.sender;
@@ -48,22 +49,27 @@ contract P2PEscrow {
     }
 
     //Create Trade Function
-    function createTrade(address _seller, address token, uint256 amount) external {
-        require(_seller != address(0), "Invalid seller address");
+    function createTrade(address token, uint256 amount) external returns (uint256) {
+        require(msg.sender != address(0), "Invalid seller address");
         require(amount > 0, "Amount must be greater than zero");
-        IERC20(token).transferFrom(msg.sender, address(this), amount);
+
+         uint256 currentTradeId = tradeCount;
 
         trades[tradeCount] = Trade({
-            seller: _seller,
+            seller: msg.sender,
             buyer: address(0),
             token: token,
             amount: amount,
             status: TradeStatus.Pending
         });
 
-        emit TradeCreated(tradeCount, address(this), _seller, amount);
+        return tradeCount++;
 
-        tradeCount++;
+        emit TradeCreated(tradeCount, address(this), msg.sender, amount);
+
+        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Token transfer failed");
+
+        return currentTradeId;
     }
 
     // Accept Trade Function
@@ -80,11 +86,9 @@ contract P2PEscrow {
     function releaseFunds(uint256 tradeId) external onlySeller(tradeId) {
         Trade storage trade = trades[tradeId];
         require(trade.status == TradeStatus.Accepted, "Trade is not accepted");
-
-        IERC20(trade.token).transfer(trade.seller, trade.amount);
-
-        emit TradeReleased(tradeId);
         trade.status = TradeStatus.Released;
+        emit TradeReleased(tradeId);
+        require(IERC20(trade.token).transfer(trade.seller, trade.amount), "Token transfer failed");
     }
 
     // Cancel Trade Function
@@ -93,8 +97,8 @@ contract P2PEscrow {
         require(trade.status == TradeStatus.Pending, "Cannot cancel trade");
 
         trade.status = TradeStatus.Cancelled;
-        IERC20(trade.token).transfer(trade.seller, trade.amount);
         emit TradeCancelled(tradeId);
+        require(IERC20(trade.token).transfer(trade.seller, trade.amount), "Token transfer failed");
     }
 
     // Dispute Trade Function
@@ -113,8 +117,8 @@ contract P2PEscrow {
         require(trade.status == TradeStatus.Disputed, "This trade is not disputed");
 
         trade.status = TradeStatus.Released;
-        IERC20(trade.token).transfer(to, trade.amount);
         emit TradeResolved(tradeId, to);
+        require(IERC20(trade.token).transfer(to, trade.amount), "Token transfer failed");
     }
 
     // Get total trades function
