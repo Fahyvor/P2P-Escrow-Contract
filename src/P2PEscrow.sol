@@ -84,7 +84,7 @@ contract P2PEscrow is ReentrancyGuard {
     }
 
     // Release Trade Function
-    function releaseFunds(uint256 tradeId) external onlySeller(tradeId) {
+    function releaseFunds(uint256 tradeId) external nonReentrant onlySeller(tradeId) {
         Trade storage trade = trades[tradeId];
         require(trade.status == TradeStatus.Accepted, "Trade is not accepted");
         trade.status = TradeStatus.Released;
